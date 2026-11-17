@@ -467,7 +467,11 @@ function Answer({
                   : `${AGENT_NAMES[speakers[i]]} called a tool`
               }
             >
-              <ToolCard step={step} number={++toolCount} />
+              <ToolCard
+                step={step}
+                number={++toolCount}
+                agent={AGENT_NAMES[speakers[i]]}
+              />
             </Station>
           ),
         )}
@@ -610,7 +614,16 @@ function InlineMarkdown({ text }: { text: string }) {
   });
 }
 
-function ToolCard({ step, number }: { step: ToolStep; number: number }) {
+function ToolCard({
+  step,
+  number,
+  agent = "Copper",
+}: {
+  step: ToolStep;
+  number: number;
+  /** Who called the tool. */
+  agent?: string;
+}) {
   return (
     <div
       data-testid="tool-call"
@@ -628,7 +641,8 @@ function ToolCard({ step, number }: { step: ToolStep; number: number }) {
       </div>
       <div className="space-y-2 px-3 py-3">
         <p className="text-muted-foreground flex items-center gap-1 text-[11px] font-semibold tracking-widest uppercase">
-          <ArrowRightIcon className="size-3" /> What Copper sent
+          <ArrowRightIcon className="size-3" /> What{" "}
+          {agent === "Copper" ? "Copper" : `the ${agent}`} sent
         </p>
         {step.input === undefined ? (
           <p className="text-muted-foreground text-xs italic">

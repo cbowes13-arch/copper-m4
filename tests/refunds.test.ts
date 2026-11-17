@@ -210,3 +210,28 @@ describe("Copper hands refund requests to the Refund agent", () => {
     expect(tools).not.toContain("transfer_to_refund_agent");
   });
 });
+
+describe("when Gemini's free limit is used up", () => {
+  it("tells the customer plainly instead of a vague error", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    model = new MockLanguageModelV4({
+      doStream: async () => {
+        throw Object.assign(new Error("Resource has been exhausted"), {
+          statusCode: 429,
+        });
+      },
+    });
+    const { askCopper } = await import("@/lib/copper/assistant/ask");
+    const progress = await finalValue(
+      (
+        await askCopper({
+          messages: [{ role: "user", content: "Refund my Copper Home" }],
+          useTools: true,
+          refunds: { orders: ORDERS, limitUsd: 50 },
+        })
+      ).progress,
+    );
+    expect(progress.status).toBe("error");
+    expect(progress.reply).toMatch(/free Gemini usage limit/);
+  });
+});

@@ -8,7 +8,7 @@
 // orders and limit. Copper then has a handoff tool; when it calls it, the same
 // question goes on to the Refund agent, with its own instructions and tools.
 import { hasToolCall, stepCountIs } from "ai";
-import { callStream, THOUGHT_SUMMARIES } from "@/lib/ai/call";
+import { callStream, isRateLimited, THOUGHT_SUMMARIES } from "@/lib/ai/call";
 import { createLive, type Live } from "@/lib/ai/live";
 import {
   COPPER_HANDOFF_INSTRUCTIONS,
@@ -46,6 +46,10 @@ export type AskCopperResult = { progress: Live<Progress> };
 const MAX_STEPS = 5;
 
 const SORRY = "Sorry, something went wrong on my end. Please try again.";
+
+/** When Gemini refuses because the free usage limit is used up (HTTP 429). */
+const LIMIT_REACHED =
+  "Sorry, Copper has reached the free Gemini usage limit for now. Please wait a minute and try again. If it keeps happening, the daily limit is used up: try again tomorrow, or switch AI_MODEL to another model.";
 
 /** The model settings for one agent's part of the answer. */
 function agentSetup(
@@ -194,9 +198,15 @@ export async function askCopper({
       }
       progress.status = "done";
       if (!progress.reply.trim()) progress.reply = SORRY;
-    } catch {
+    } catch (error) {
       progress.status = "error";
-      if (!progress.reply.trim()) progress.reply = SORRY;
+      if (isRateLimited(error)) {
+        progress.reply = progress.reply.trim()
+          ? `${progress.reply}
+
+${LIMIT_REACHED}`
+          : LIMIT_REACHED;
+      } else if (!progress.reply.trim()) progress.reply = SORRY;
     }
     done(snapshot());
   })();

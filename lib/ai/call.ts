@@ -191,8 +191,37 @@ export function callStream(info: CallInfo, options: StreamOptions) {
     ...options,
     model: languageModel(model),
     onFinish: ({ totalUsage }) => logCall(row(true, totalUsage)),
-    onError: () => logCall(row(false)),
+    onError: ({ error }) => {
+      // Say why it failed (e.g. a 429 when the free daily limit is used up).
+      // Only the status and message: never the request, which holds the key.
+      console.error("[ai_calls] error", describeError(error));
+      return logCall(row(false));
+    },
   });
+}
+
+/** A failed call's HTTP status and message, safe to print. */
+export function describeError(error: unknown): string {
+  const status =
+    typeof error === "object" && error !== null && "statusCode" in error
+      ? `${(error as { statusCode?: number }).statusCode} `
+      : "";
+  const message = error instanceof Error ? error.message : String(error);
+  return `${status}${message}`.slice(0, 500);
+}
+
+/** True when the model refused because a usage limit was reached (HTTP 429). */
+export function isRateLimited(error: unknown): boolean {
+  if (typeof error === "object" && error !== null) {
+    const { statusCode, lastError } = error as {
+      statusCode?: number;
+      lastError?: unknown;
+    };
+    if (statusCode === 429) return true;
+    // After retries the SDK wraps the last error.
+    if (lastError && isRateLimited(lastError)) return true;
+  }
+  return /429|quota|RESOURCE_EXHAUSTED|rate limit/i.test(describeError(error));
 }
 
 // Asking for some thinking (rather than letting the model decide) is what
