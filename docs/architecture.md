@@ -139,3 +139,33 @@ second agent, and a person approving the large ones.
 |---|---|---|
 | Page | `app/support/page.tsx` | The "Refund Console" title and nothing else yet, linked from the header as Support |
 | Chat panel | `components/copper/ask-copper.tsx` | With the `docked` prop it starts open and the page beside it stays clickable. It is the same single agent and tools as on the home page |
+
+## Module 4: Refunds with a second agent and a person in the loop
+
+**Summary:** On the Support page, Copper hands refund requests to a second
+agent, the Refund agent. Its `request_refund` tool asks the app for the refund,
+and code decides: at or under the auto-refund limit (default $50, editable in
+the Refund Console) the order is refunded; over it, the refund waits in the
+Refund Console until a person clicks Approve or Reject. The Refund agent then
+posts the outcome in the chat.
+
+| Piece | Where | What it does |
+|---|---|---|
+| Orders and the limit rule | `lib/copper/refunds.ts` | Maya Reyes's four orders, `decideRefund` (code decides by amount), `resolveRefund` (a person's Approve or Reject) and the chat message for each outcome |
+| Refund agent tools | `lib/copper/assistant/refund-tools.ts` | `get_purchase_history`, `get_refund_rules` (the limit plus refund passages via Module 3's search), `request_refund` (decides and updates the order's status), and the handoff tools `transfer_to_refund_agent` / `transfer_to_copper` |
+| Instructions | `lib/copper/assistant/instructions.ts` | `COPPER_HANDOFF_INSTRUCTIONS` (added to Copper's on the Support page) and `REFUND_AGENT_INSTRUCTIONS` |
+| Handoff | `lib/copper/assistant/ask.ts` | Runs Copper; if it calls a handoff tool, the stream stops (`hasToolCall`) and the same question goes on to the other agent. At most one handoff per question. The agent that finished answers the next question |
+| Console state | `components/copper/refund-desk.tsx` | A React context holding the orders and limit in the page, shared by the console and the chat. No database: a reload starts fresh |
+| Console UI | `components/copper/refund-console.tsx` | The limit, "Waiting for your approval" with Approve / Reject, and the orders with each refund's status |
+
+**AI calls:** Copper is logged as `ask-copper` (module 2) and the Refund agent
+as `refund-agent` (module 4). A refund that hands off costs about four model
+steps (handoff, tool calls, reply). Approve and Reject cost none: the chat
+message is written by code.
+
+**Decisions:** The orders live in the browser, not a database, so the demo
+works on Vercel with no setup and every visitor gets their own copy. The chat
+sends the orders and limit with each question, so the server trusts the page
+for them; fine for a class demo, not for real money. The Refund agent never
+judges eligibility from the policy: it always submits the request, so the
+decision stays with code (the limit) and a person (Approve or Reject).
